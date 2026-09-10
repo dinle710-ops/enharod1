@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>השרשרת העינחרודית</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+        
+        html, body {
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
+        }
+
+        body { 
+            background-color: #1a1a1a; 
+            color: white; 
+            font-family: system-ui, sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            min-height: 100vh; 
+            align-items: center; 
+            padding: 15px 10px; 
+            touch-action: manipulation;
+        }
+        
+        /* הסרת הפיזור של ה-flex כדי שהכותרת תהיה ממורכזת ונקי מסמלים */
+        .header { display: flex; justify-content: center; width: 100%; max-width: 400px; font-size: 1.3rem; font-weight: bold; margin-bottom: 20px; text-align: center; }
+        
+        .game-container { 
+            position: relative; 
+            width: 100%; 
+            max-width: 380px; 
+            flex-grow: 1; 
+            display: flex;
+            justify-content: center;
+        }
+
+        .game-board { 
+            display: grid; 
+            grid-template-columns: 1fr 1.2fr 1fr; 
+            gap: 8px; 
+            width: 100%; 
+            transition: all 0.3s ease; 
+        }
+
+        .game-board.finished { 
+            grid-template-columns: 1fr;
+        }
+
+        .game-board.finished .side-column {
+            display: none !important;
+        }
+        
+        .side-column { display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; min-height: 300px; }
+        .center-column { background-color: #111; border-radius: 8px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 12px 0; position: relative; min-height: 520px; width: 100%; }
+        .center-column::before { content: ""; position: absolute; top: 5%; bottom: 5%; width: 2px; border-left: 2px dashed #444; z-index: 0; }
+
+        .node-wrapper { position: relative; display: flex; justify-content: center; align-items: center; width: 100%; }
+        .node { width: 60px; height: 60px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 0.8rem; font-weight: bold; text-align: center; z-index: 2; overflow: hidden; background-color: #536dfe; color: white; transition: background-color 0.3s; touch-action: none; }
+        .fixed-node { background-color: #ffffff; color: #000; }
+        
+        .slot { border: 2px dashed #555; background-color: #1a1a1a; color: white; }
+        .slot.drag-over { border-color: #4db6ac; background-color: #26a69a33; }
+        .slot.incorrect { border: 3px solid #f44336; background-color: #b71c1c; }
+        .slot.correct-final { background-color: #8bc34a; color: #000; border: none; }
+        
+        .draggable { cursor: grab; }
+        .draggable:active { cursor: grabbing; opacity: 0.6; }
+
+        .explanation-bubble { 
+            position: absolute; 
+            background: rgba(30, 30, 30, 0.95); 
+            border: 1px dashed #888; 
+            padding: 4px 8px; 
+            border-radius: 8px; 
+            font-size: 0.68rem; 
+            color: #eee; 
+            width: 100%;
+            max-width: 220px;
+            text-align: center; 
+            z-index: 10; 
+            display: none; 
+            line-height: 1.2;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+
+        .explanation-bubble.right, 
+        .explanation-bubble.left { 
+            left: 50%; 
+            transform: translateX(-50%); 
+            top: 65px; 
+        }
+
+        @media (min-width: 600px) {
+            .node { width: 65px; height: 65px; font-size: 0.85rem; }
+            .explanation-bubble { width: 120px; max-width: none; font-size: 0.75rem; }
+            .explanation-bubble.right { right: -130px; left: auto; top: auto; transform: none; }
+            .explanation-bubble.left { left: -130px; top: auto; transform: none; }
+        }
+
+        .footer { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
+        .btn { padding: 12px; border-radius: 25px; border: none; font-weight: bold; cursor: pointer; font-size: 0.95rem; }
+        .btn-submit { background-color: #3b82f6; color: white; }
+        .btn-secondary { background-color: #2a2a2a; color: white; border: 1px solid #444; }
+
+        /* עיצוב משודרג למסך הסיום */
+        .win-screen { 
+            display: none; 
+            text-align: center; 
+            background-color: #222;
+            border: 1px solid #444;
+            border-radius: 15px;
+            padding: 15px;
+            margin-top: 10px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+        .win-screen h2 { font-size: 1.4rem; color: #4db6ac; margin-bottom: 6px; }
+        .win-screen p { color: #ddd; font-size: 0.95rem; }
+    </style>
+</head>
+<body>
+
+    <!-- כותרת נקייה ללא סימנים -->
+    <div class="header">
+        <span>השרשרת העינחרודית</span>
+    </div>
+
+    <div class="game-container">
+        <div class="game-board" id="game-board">
+            <div class="side-column" id="right-pool"></div>
+            <div class="center-column" id="center-chain"></div>
+            <div class="side-column" id="left-pool"></div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <button class="btn btn-submit" id="submit-btn" onclick="checkSolution()">אישור ✓</button>
+        <button class="btn btn-secondary" id="reset-btn" onclick="location.reload()">ניקוי לוח ↺</button>
+        
+        <!-- מסך הסיום המעודכן -->
+        <div class="win-screen" id="win-screen">
+            <h2>כל הכבוד! אתם עינחרודים אמיתיים!</h2>
+            <p id="win-stats"></p>
+        </div>
+    </div>
+
+    <script>
+        const gameData = {
+            startNode: "שיינמן",
+            chain: [
+                { word: "גור אריה", exp: "1-2: אבישג שיינמן היא אחותו של נחום גור אריה", side: "right" },
+                { word: "פן", exp: "2-3: נחום הוא אביה של רוני פן", side: "left" },
+                { word: "כהן", exp: "3-4: רוני היא בת דודתה של עפרי כהן", side: "right" },
+                { word: "חוגים", exp: "4-5: עפרי היא דודה של נעם חוגים", side: "left" }
+            ],
+            endNode: { word: "גרדי", exp: "5-6: אריאל חוגים היא נינה של אמי גרדי", side: "right" },
+            distractors: ["שפירא", "דורון", "צור", "קמחי"]
+        };
+
+        let totalErrors = 0;
+
+        function initGame() {
+            const center = document.getElementById("center-chain");
+            const rightPool = document.getElementById("right-pool");
+            const leftPool = document.getElementById("left-pool");
+
+            center.innerHTML += `<div class="node-wrapper"><div class="node fixed-node">${gameData.startNode}</div></div>`;
+
+            gameData.chain.forEach((item, index) => {
+                const bubbleSide = item.side === "right" ? "right" : "left";
+                center.innerHTML += `
+                    <div class="node-wrapper">
+                        <div class="node slot" data-correct="${item.word}"></div>
+                        <div class="explanation-bubble ${bubbleSide}" id="exp-${index}">${item.exp}</div>
+                    </div>`;
+            });
+
+            const endSide = gameData.endNode.side === "right" ? "right" : "left";
+            center.innerHTML += `
+                <div class="node-wrapper">
+                    <div class="node fixed-node">${gameData.endNode.word}</div>
+                    <div class="explanation-bubble ${endSide}" id="exp-end">${gameData.endNode.exp}</div>
+                </div>`;
+
+            const correctWords = gameData.chain.map(item => item.word);
+            let allOptions = [...correctWords, ...gameData.distractors].sort(() => Math.random() - 0.5);
+
+            allOptions.forEach((word, index) => {
+                const el = document.createElement("div");
+                el.className = "node draggable";
+                el.draggable = true;
+                el.innerText = word;
+                el.setAttribute("data-origin", index % 2 === 0 ? "right" : "left");
+                
+                if (index % 2 === 0) rightPool.appendChild(el);
+                else leftPool.appendChild(el);
+            });
+
+            setupDragAndDrop();
+        }
+
+        function setupDragAndDrop() {
+            const draggables = document.querySelectorAll('.draggable');
+            const slots = document.querySelectorAll('.slot');
+            let activeElement = null;
+            let touchOffsetX = 0, touchOffsetY = 0;
+
+            draggables.forEach(item => {
+                item.addEventListener('dragstart', () => {
+                    activeElement = item;
+                    setTimeout(() => item.style.display = 'none', 0);
+                });
+                item.addEventListener('dragend', () => {
+                    setTimeout(() => { if (activeElement) activeElement.style.display = 'flex'; activeElement = null; }, 0);
+                });
+
+                item.addEventListener('touchstart', (e) => {
+                    activeElement = item;
+                    const touch = e.touches[0];
+                    const rect = item.getBoundingClientRect();
+                    touchOffsetX = touch.clientX - rect.left;
+                    touchOffsetY = touch.clientY - rect.top;
+
+                    item.style.position = 'fixed';
+                    item.style.zIndex = '1000';
+                    moveAt(touch.clientX, touch.clientY);
+                }, { passive: false });
+
+                item.addEventListener('touchmove', (e) => {
+                    if (!activeElement) return;
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    moveAt(touch.clientX, touch.clientY);
+                }, { passive: false });
+
+                item.addEventListener('touchend', (e) => {
+                    if (!activeElement) return;
+                    item.style.position = 'static';
+                    item.style.zIndex = '2';
+
+                    const touch = e.changedTouches[0];
+                    const dropTarget = document.elementFromPoint(touch.clientX, touch.clientY);
+                    const slot = dropTarget ? dropTarget.closest('.slot') : null;
+
+                    if (slot) {
+                        if (slot.children.length > 0) {
+                            returnToPool(slot.children[0]);
+                        }
+                        slot.appendChild(item);
+                    } else {
+                        returnToPool(item);
+                    }
+                    activeElement = null;
+                });
+
+                function moveAt(pageX, pageY) {
+                    item.style.left = pageX - touchOffsetX + 'px';
+                    item.style.top = pageY - touchOffsetY + 'px';
+                }
+            });
+
+            slots.forEach(slot => {
+                slot.addEventListener('dragover', e => { e.preventDefault(); slot.classList.add('drag-over'); });
+                slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+                slot.addEventListener('drop', e => {
+                    e.preventDefault();
+                    slot.classList.remove('drag-over');
+                    if (slot.children.length > 0) returnToPool(slot.children[0]);
+                    slot.appendChild(activeElement);
+                });
+            });
+        }
+
+        function returnToPool(element) {
+            const origin = element.getAttribute("data-origin");
+            const targetPool = origin === "right" ? document.getElementById('right-pool') : document.getElementById('left-pool');
+            targetPool.appendChild(element);
+        }
+
+        function checkSolution() {
+            const slots = document.querySelectorAll('.slot');
+            let filledSlots = 0;
+            let currentErrors = 0;
+
+            slots.forEach(slot => {
+                if (slot.children.length > 0) {
+                    filledSlots++;
+                    const userWord = slot.children[0].innerText.trim();
+                    const correctWord = slot.getAttribute('data-correct');
+
+                    if (userWord !== correctWord) {
+                        currentErrors++;
+                        slot.classList.add('incorrect');
+                        setTimeout(() => {
+                            slot.classList.remove('incorrect');
+                            if (slot.children.length > 0) {
+                                returnToPool(slot.children[0]);
+                            }
+                        }, 1000);
+                    }
+                }
+            });
+
+            if (filledSlots < slots.length) {
+                alert("יש למלא את כל המשבצות בשרשרת!");
+                return;
+            }
+
+            totalErrors += currentErrors;
+
+            if (currentErrors === 0) {
+                showWinScreen();
+            }
+        }
+
+        function showWinScreen() {
+            document.getElementById('game-board').classList.add('finished');
+
+            const slots = document.querySelectorAll('.slot');
+            slots.forEach(slot => {
+                slot.classList.add('correct-final');
+                if (slot.children[0]) slot.children[0].style.backgroundColor = 'transparent';
+            });
+
+            document.querySelectorAll('.explanation-bubble').forEach(el => el.style.display = 'block');
+
+            document.getElementById('submit-btn').style.display = 'none';
+            document.getElementById('win-screen').style.display = 'block';
+            document.getElementById('win-stats').innerText = `פתרתם את המשחק בהצלחה!`;
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
